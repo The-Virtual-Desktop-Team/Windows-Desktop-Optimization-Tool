@@ -1,4 +1,4 @@
-﻿function Optimize-WDOTNetworkOptimizations
+﻿function Optimize-WDOTNetworkOptimization
 {
     [CmdletBinding()]
 

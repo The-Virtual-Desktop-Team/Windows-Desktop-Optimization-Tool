@@ -1,4 +1,4 @@
-﻿function Disable-WDOTAutoLoggers
+﻿function Disable-WDOTAutoLogger
 {
     [CmdletBinding()]
 

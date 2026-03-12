@@ -1,4 +1,4 @@
-﻿Function Remove-WDOTAppxPackages
+﻿Function Remove-WDOTAppxPackage
 {
     [CmdletBinding(SupportsShouldProcess)]
     Param

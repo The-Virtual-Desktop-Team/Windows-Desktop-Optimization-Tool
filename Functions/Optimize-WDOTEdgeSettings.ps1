@@ -1,4 +1,4 @@
-﻿function Optimize-WDOTEdgeSettings
+﻿function Optimize-WDOTEdgeSetting
 {
     [CmdletBinding()]
 

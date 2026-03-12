@@ -47,11 +47,11 @@ Param (
     If specified, creates a backup of the original file before making changes.
 
 .EXAMPLE
-    Set-WVDConfigurations -ConfigurationFile "AppxPackages" -ConfigFolderName "Production"
+    .\Set-WVDConfigurations.ps1 -ConfigurationFile "AppxPackages" -ConfigFolderName "Production"
     Interactively configure AppxPackages optimizations for the Production folder.
 
 .EXAMPLE
-    Set-WVDConfigurations -ConfigurationFile "Services.json" -ConfigFolderName "Test1" -ApplyAll
+    .\Set-WVDConfigurations.ps1 -ConfigurationFile "Services.json" -ConfigFolderName "Test1" -ApplyAll
     Apply all Services optimizations for the Test1 folder without prompting.
 
 .NOTES
@@ -59,7 +59,7 @@ Param (
     Version: 2.0
     Requires: PowerShell 5.1 or higher
 #>
-Function Set-WVDConfigurations
+Function Set-WVDConfiguration
 {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([System.Boolean])]
@@ -339,7 +339,7 @@ if (-not $PSBoundParameters.ContainsKey('WhatIf') -and -not $PSBoundParameters.C
     if ($SkipAll) { $params.SkipAll = $true }
     if ($CreateBackup) { $params.CreateBackup = $true }
 
-    $result = Set-WVDConfigurations @params
+    $result = Set-WVDConfiguration @params
 
     if ($result)
     {

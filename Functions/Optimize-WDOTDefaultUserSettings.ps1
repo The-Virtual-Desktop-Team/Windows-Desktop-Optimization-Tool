@@ -1,4 +1,4 @@
-﻿function Optimize-WDOTDefaultUserSettings
+﻿function Optimize-WDOTDefaultUserSetting
 {
     [CmdletBinding()]
 

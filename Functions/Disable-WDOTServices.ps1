@@ -1,4 +1,4 @@
-﻿function Disable-WDOTServices
+﻿function Disable-WDOTService
 {
     [CmdletBinding()]
 

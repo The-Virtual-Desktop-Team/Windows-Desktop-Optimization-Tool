@@ -1,4 +1,4 @@
-﻿function Disable-WDOTScheduledTasks
+﻿function Disable-WDOTScheduledTask
 {
     [CmdletBinding()]
 

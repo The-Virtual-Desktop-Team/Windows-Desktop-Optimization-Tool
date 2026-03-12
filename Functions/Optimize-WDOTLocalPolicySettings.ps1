@@ -1,4 +1,4 @@
-﻿function Optimize-WDOTLocalPolicySettings
+﻿function Optimize-WDOTLocalPolicySetting
 {
     [CmdletBinding()]
 

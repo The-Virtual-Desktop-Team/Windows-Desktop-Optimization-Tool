@@ -261,7 +261,7 @@ PROCESS {
     #region APPX Packages
     If ($Optimizations -contains "AppxPackages" -or $Optimizations -contains "All")
     {
-        Remove-WDOTAppxPackages
+        Remove-WDOTAppxPackage
     }
     #endregion
 
@@ -270,7 +270,7 @@ PROCESS {
     # change its "VDIState" from Disabled to Enabled, or remove it from the json completely.
     If ($Optimizations -contains 'ScheduledTasks' -or $Optimizations -contains "All")
     {
-        Disable-WDOTScheduledTasks
+        Disable-WDOTScheduledTask
     }
     #endregion
 
@@ -278,21 +278,21 @@ PROCESS {
     # Apply appearance customizations to default user registry hive, then close hive file
     If ($Optimizations -contains "DefaultUserSettings" -or $Optimizations -contains "All")
     {
-        Optimize-WDOTDefaultUserSettings
+        Optimize-WDOTDefaultUserSetting
     }
     #endregion
 
     #region Disable Windows Traces
     If ($Optimizations -contains "AutoLoggers" -or $Optimizations -contains "All")
     {
-        Disable-WDOTAutoLoggers
+        Disable-WDOTAutoLogger
     }
     #endregion
 
     #region Disable Services
     If ($Optimizations -contains "Services" -or $Optimizations -contains "All")
     {
-        Disable-WDOTServices
+        Disable-WDOTService
     }
     #endregion
 
@@ -300,7 +300,7 @@ PROCESS {
     # LanManWorkstation optimizations
     If ($Optimizations -contains "NetworkOptimizations" -or $Optimizations -contains "All")
     {
-        Optimize-WDOTNetworkOptimizations
+        Optimize-WDOTNetworkOptimization
     }
     #endregion
 
@@ -312,14 +312,14 @@ PROCESS {
     #   * set the "Select when Quality Updates are received" policy
     If ($Optimizations -contains "LocalPolicy" -or $Optimizations -contains "All")
     {
-        Optimize-WDOTLocalPolicySettings
+        Optimize-WDOTLocalPolicySetting
     }
     #endregion
 
     #region Edge Settings
     If ($AdvancedOptimizations -contains "Edge" -or $AdvancedOptimizations -contains "All")
     {
-        Optimize-WDOTEdgeSettings
+        Optimize-WDOTEdgeSetting
     }
     #endregion
 

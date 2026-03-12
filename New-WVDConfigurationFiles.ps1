@@ -19,9 +19,9 @@ Param (
     numbers, underscores, and hyphens.
 
 .EXAMPLE
-    New-WVDConfigurationFiles -FolderName <your config name>
-    Ex. New-WVDConfigurationFiles -FolderName "W11_24H2"
-    Ex. New-WVDConfigurationFiles -FolderName "WS25_24H2"
+    .\New-WVDConfigurationFiles.ps1 -FolderName <your config name>
+    Ex. .\New-WVDConfigurationFiles.ps1 -FolderName "W11_24H2"
+    Ex. .\New-WVDConfigurationFiles.ps1 -FolderName "WS25_24H2"
     Creates a new folder called <your config name> with all template files.
 
 .NOTES
@@ -29,7 +29,7 @@ Param (
     Version: 2.0
     Requires: PowerShell 5.1 or higher
 #>
-Function New-WVDConfigurationFiles {
+Function New-WVDConfigurationFile {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([System.Boolean])]
     param (
@@ -88,7 +88,7 @@ Function New-WVDConfigurationFiles {
 
 # Main execution
 if (-not $PSBoundParameters.ContainsKey('WhatIf') -and -not $PSBoundParameters.ContainsKey('Confirm')) {
-    $result = New-WVDConfigurationFiles -FolderName $FolderName
+    $result = New-WVDConfigurationFile -FolderName $FolderName
     if ($result) {
         Write-Host "Configuration folder '$FolderName' created successfully!" -ForegroundColor Green
     } else {
