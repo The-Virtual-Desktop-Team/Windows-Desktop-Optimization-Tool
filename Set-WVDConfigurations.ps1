@@ -1,21 +1,22 @@
-﻿[CmdletBinding()]
+﻿#Requires -Version 5.1
+[CmdletBinding()]
 Param (
-    [Parameter(Mandatory = $true, HelpMessage = "Specify the configuration file name (with or without .json extension)")]
+    [Parameter(Mandatory, HelpMessage = 'Specify the configuration file name (with or without .json extension)')]
     [ValidateNotNullOrEmpty()]
     [string]$ConfigurationFile,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Specify the configuration folder name")]
+    [Parameter(Mandatory, HelpMessage = 'Specify the configuration folder name')]
     [ValidateNotNullOrEmpty()]
     [ValidatePattern("^[a-zA-Z0-9_-]+$")]
     [string]$ConfigFolderName,
 
-    [Parameter(HelpMessage = "Apply all optimizations without prompting")]
+    [Parameter(HelpMessage = 'Apply all optimizations without prompting')]
     [switch]$ApplyAll,
 
-    [Parameter(HelpMessage = "Skip all optimizations without prompting")]
+    [Parameter(HelpMessage = 'Skip all optimizations without prompting')]
     [switch]$SkipAll,
 
-    [Parameter(HelpMessage = "Create backup of original file before modifications")]
+    [Parameter(HelpMessage = 'Create backup of original file before modifications')]
     [switch]$CreateBackup
 )
 
@@ -64,11 +65,11 @@ Function Set-WVDConfiguration
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([System.Boolean])]
     param (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [Parameter(Mandatory,ValueFromPipeline)]
         [ValidateNotNullOrEmpty()]
         [string]$ConfigurationFile,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [ValidatePattern("^[a-zA-Z0-9_-]+$")]
         [string]$ConfigFolderName,
@@ -82,8 +83,7 @@ Function Set-WVDConfiguration
         [Parameter()]
         [switch]$CreateBackup
     )
-
-    begin
+    Begin
     {
         # Define configuration file property mappings
         $ConfigMappings = @{
@@ -100,11 +100,11 @@ Function Set-WVDConfiguration
         # Validate conflicting parameters
         if ($ApplyAll -and $SkipAll)
         {
-            throw "Cannot specify both -ApplyAll and -SkipAll parameters simultaneously."
+            throw 'Cannot specify both -ApplyAll and -SkipAll parameters simultaneously.'
         }
+        $HT = @{ ErrorAction = 'Stop' }
     }
-
-    process
+    Process
     {
         try
         {
@@ -133,7 +133,7 @@ Function Set-WVDConfiguration
             }
 
             # Build target file path
-            $ConfigurationsRoot = Join-Path -Path $PSScriptRoot -ChildPath "Configurations"
+            $ConfigurationsRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Configurations'
             $ConfigFolder = Join-Path -Path $ConfigurationsRoot -ChildPath $ConfigFolderName
             $TargetFile = Join-Path -Path $ConfigFolder -ChildPath $ConfigurationFile
 
@@ -152,18 +152,26 @@ Function Set-WVDConfiguration
             if ($CreateBackup)
             {
                 $BackupFile = "$TargetFile.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-                Write-Verbose "Creating backup: $BackupFile"
-                Copy-Item -Path $TargetFile -Destination $BackupFile -Force
-                Write-Host "Backup created: $BackupFile" -ForegroundColor Green
+                Write-Verbose -Message "Creating backup: $BackupFile"
+                try {
+                 Copy-Item -Path $TargetFile -Destination $BackupFile -Force @HT
+                 Write-Host -Object "Backup created: $BackupFile" -ForegroundColor Green
+                } catch {
+                 Write-Warning -Message "Failed to create backup because $($_.Exception.Message)"
+                }
             }
 
             # Read and parse configuration file
-            Write-Verbose "Reading configuration file: $TargetFile"
-            $Content = Get-Content -Path $TargetFile -Raw | ConvertFrom-Json
+            Write-Verbose -Message "Reading configuration file: $TargetFile"
+            try {
+             $Content = Get-Content -Path $TargetFile -Raw @HT | ConvertFrom-Json @HT
+            } catch {
+             Write-Warning -Message "Failed to read $TargetFile as json because $($_.Exception.Message)"
+            }
 
             if (-not $Content -or $Content.Count -eq 0)
             {
-                Write-Warning "Configuration file is empty or invalid: $TargetFile"
+                Write-Warning -Message "Configuration file is empty or invalid: $TargetFile"
                 return $false
             }
 
@@ -194,12 +202,12 @@ Function Set-WVDConfiguration
 
             $TotalCount = $ConfigItems.Count
 
-            Write-Host "`nConfiguring $Description optimizations for '$ConfigFolderName'" -ForegroundColor Cyan
-            Write-Host "Total items: $TotalCount" -ForegroundColor Yellow
+            Write-Host -Object "`nConfiguring $Description optimizations for '$ConfigFolderName'" -ForegroundColor Cyan
+            Write-Host -Object "Total items: $TotalCount" -ForegroundColor Yellow
 
             if ($TotalCount -eq 0)
             {
-                Write-Warning "No configuration items found in file: $TargetFile"
+                Write-Warning -Message "No configuration items found in file: $TargetFile"
                 return $false
             }
 
@@ -211,7 +219,7 @@ Function Set-WVDConfiguration
 
                 if (-not $Name)
                 {
-                    Write-Warning "Skipping item with missing name property '$PropName'"
+                    Write-Warning -Message "Skipping item with missing name property '$PropName'"
                     continue
                 }
 
@@ -244,23 +252,23 @@ Function Set-WVDConfiguration
                         }
                     }
 
-                    Write-Host "`n$Description`: " -NoNewline -ForegroundColor White
-                    Write-Host "$Name" -ForegroundColor Yellow
+                    Write-Host -Object "`n$Description`: " -NoNewline -ForegroundColor White
+                    Write-Host -Object "$Name" -ForegroundColor Yellow
                     if ($ContextInfo)
                     {
                         Write-Host "  Details:$ContextInfo" -ForegroundColor Cyan
                     }
                     if ($ItemDescription)
                     {
-                        Write-Host "  Description:$ItemDescription" -ForegroundColor Gray
+                        Write-Host -Object "  Description:$ItemDescription" -ForegroundColor Gray
                     }
-                    Write-Host "  Current state: " -NoNewline -ForegroundColor Gray
+                    Write-Host -Object "  Current state: " -NoNewline -ForegroundColor Gray
                     $StateColor = if ($CurrentState -eq 'Apply') { 'Green' } else { 'Red' }
-                    Write-Host "$CurrentState" -ForegroundColor $StateColor
+                    Write-Host -Object "$CurrentState" -ForegroundColor $StateColor
 
                     do
                     {
-                        $Response = Read-Host "  Action? [A]pply, [S]kip, [K]eep current, [Q]uit, [H]elp"
+                        $Response = Read-Host -Prompt "  Action? [A]pply, [S]kip, [K]eep current, [Q]uit, [H]elp"
                         switch ($Response.ToUpper())
                         {
                             'A' { $NewState = 'Apply'; break }
@@ -268,22 +276,22 @@ Function Set-WVDConfiguration
                             'K' { $NewState = $CurrentState; break }
                             'Q'
                             {
-                                Write-Host "Configuration cancelled by user." -ForegroundColor Yellow
+                                Write-Host -Object "Configuration cancelled by user." -ForegroundColor Yellow
                                 return $false
                             }
                             'H'
                             {
-                                Write-Host "`n  Available options:" -ForegroundColor Cyan
-                                Write-Host "    A - Apply this optimization" -ForegroundColor Green
-                                Write-Host "    S - Skip this optimization" -ForegroundColor Red
-                                Write-Host "    K - Keep current setting ($CurrentState)" -ForegroundColor Gray
-                                Write-Host "    Q - Quit without saving changes" -ForegroundColor Yellow
-                                Write-Host "    H - Show this help" -ForegroundColor Cyan
+                                Write-Host -Object "`n  Available options:" -ForegroundColor Cyan
+                                Write-Host -Object "    A - Apply this optimization" -ForegroundColor Green
+                                Write-Host -Object "    S - Skip this optimization" -ForegroundColor Red
+                                Write-Host -Object "    K - Keep current setting ($CurrentState)" -ForegroundColor Gray
+                                Write-Host -Object "    Q - Quit without saving changes" -ForegroundColor Yellow
+                                Write-Host -Object "    H - Show this help" -ForegroundColor Cyan
                                 continue
                             }
                             default
                             {
-                                Write-Host "  Invalid option. Press 'H' for help." -ForegroundColor Red
+                                Write-Host -Object "  Invalid option. Press 'H' for help." -ForegroundColor Red
                                 continue
                             }
                         }
@@ -296,23 +304,27 @@ Function Set-WVDConfiguration
                 {
                     $Config.OptimizationState = $NewState
                     $ModifiedCount++
-                    Write-Verbose "Changed '$Name' from '$CurrentState' to '$NewState'"
+                    Write-Verbose -Message "Changed '$Name' from '$CurrentState' to '$NewState'"
                 }
             }
 
             # Save changes if any modifications were made
-            if ($PSCmdlet.ShouldProcess($TargetFile, "Save configuration changes"))
+            if ($PSCmdlet.ShouldProcess($TargetFile, 'Save configuration changes'))
             {
                 if ($ModifiedCount -gt 0)
                 {
-                    Write-Verbose "Saving $ModifiedCount changes to: $TargetFile"
-                    $Content | ConvertTo-Json -Depth 10 | Set-Content -Path $TargetFile -Encoding UTF8
-                    Write-Host "`nConfiguration saved successfully!" -ForegroundColor Green
-                    Write-Host "Modified $ModifiedCount out of $TotalCount items." -ForegroundColor Yellow
+                    Write-Verbose -Message "Saving $ModifiedCount changes to: $TargetFile"
+                    try {
+                     $Content | ConvertTo-Json -Depth 10 @HT | Set-Content -Path $TargetFile -Encoding UTF8 @HT
+                     Write-Host -Object "`nConfiguration saved successfully!" -ForegroundColor Green
+                     Write-Host -Object "Modified $ModifiedCount out of $TotalCount items." -ForegroundColor Yellow
+                    } catch {
+                     Write-Warning -Message "Failed to modify $($TargetFile) because $($_.Exception.Message)"
+                    }
                 }
                 else
                 {
-                    Write-Host "`nNo changes were made." -ForegroundColor Yellow
+                    Write-Host -Object "`nNo changes were made." -ForegroundColor Yellow
                 }
             }
 
@@ -321,10 +333,11 @@ Function Set-WVDConfiguration
         }
         catch
         {
-            Write-Error "Failed to configure WVD settings: $($_.Exception.Message)"
+            Write-Error -Message "Failed to configure WVD settings: $($_.Exception.Message)"
             return $false
         }
     }
+    End {}
 }
 
 # Main execution
@@ -343,11 +356,11 @@ if (-not $PSBoundParameters.ContainsKey('WhatIf') -and -not $PSBoundParameters.C
 
     if ($result)
     {
-        Write-Host "`nConfiguration completed successfully!" -ForegroundColor Green
+        Write-Host -Object "`nConfiguration completed successfully!" -ForegroundColor Green
     }
     else
     {
-        Write-Host "`nConfiguration failed or was cancelled." -ForegroundColor Red
+        Write-Host -Object "`nConfiguration failed or was cancelled." -ForegroundColor Red
         exit 1
     }
 }

@@ -1,67 +1,88 @@
-﻿function Optimize-WDOTLocalPolicySetting
+﻿#Requires -RunAsAdministrator
+Function Optimize-WDOTLocalPolicySetting
 {
     [CmdletBinding()]
-
     Param
     (
-
+    [Parameter()]
+    [string]$LocalPolicyFilePath = ".\PolicyRegSettings.json"
     )
-
     Begin
     {
-        Write-Verbose "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        $HT = @{ ErrorAction = 'Stop' }
+        $sHT = @{ ErrorAction = 'SilentlyContinue' }
+        $EVT = @{ LogName = 'WDOT' ; Source = 'LocalPolicy' }
+        $eId80Info  = @{ EventId = 80 ; EntryType = 'Information' }
+        $eId80Warn  = @{ EventId = 80 ; EntryType = 'Warning' }
     }
     Process
     {
-        $LocalPolicyFilePath = ".\PolicyRegSettings.json"
-        If (Test-Path $LocalPolicyFilePath)
+        If (Test-Path -Path $LocalPolicyFilePath -PathType Leaf)
         {
-            Write-EventLog -EventId 80 -Message "Local Policy Items" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
-            Write-Host "[Windows Optimize] Local Group Policy Items" -ForegroundColor Cyan
-            $PolicyRegSettings = Get-Content $LocalPolicyFilePath | ConvertFrom-Json
-            If ($PolicyRegSettings.Count -gt 0)
-            {
-                Write-EventLog -EventId 80 -Message "Processing PolicyRegSettings Settings ($($PolicyRegSettings.Count) Hives)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
-                Write-Verbose "Processing PolicyRegSettings Settings ($($PolicyRegSettings.Count) Hives)"
+            Write-EventLog -Message "Local Policy Items" @EVT @eId80Info @sHT
+            Write-Host -Object "[Windows Optimize] Local Group Policy Items" -ForegroundColor Cyan
+            try {
+             $PolicyRegSettings = Get-Content -Path $LocalPolicyFilePath @HT | ConvertFrom-Json @HT
+             If ($PolicyRegSettings.Count -gt 0)
+             {
+                Write-EventLog -Message "Processing PolicyRegSettings Settings ($($PolicyRegSettings.Count) Hives)" @EVT @eId80Info @sHT
+                Write-Verbose -Message "Processing PolicyRegSettings Settings ($($PolicyRegSettings.Count) Hives)"
                 Foreach ($Key in $PolicyRegSettings)
                 {
                     If ($Key.OptimizationState -eq 'Apply')
                     {
-                        If (Get-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName -ErrorAction SilentlyContinue)
+                        If (Get-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName @sHT)
                         {
-                            Write-EventLog -EventId 80 -Message "Found key, $($Key.RegItemPath) Name $($Key.RegItemValueName) Value $($Key.RegItemValue)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
-                            Write-Verbose "Found key, $($Key.RegItemPath) Name $($Key.RegItemValueName) Value $($Key.RegItemValue)"
-                            Set-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName -Value $Key.RegItemValue -Force
+                            Write-EventLog -Message "Found key, $($Key.RegItemPath) Name $($Key.RegItemValueName) Value $($Key.RegItemValue)" @EVT @eId80Info @sHT
+                            Write-Verbose -Message "Found key, $($Key.RegItemPath) Name $($Key.RegItemValueName) Value $($Key.RegItemValue)"
+                            try {
+                             Set-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName -Value $Key.RegItemValue -Force @HT
+                            } catch {
+                             Write-Warning -Message "Failed to set $($Key.RegItemValueName) under $($Key.RegItemPath) because $($_.Exception.Message)"
+                            }
                         }
                         Else
                         {
-                            If (Test-path $Key.RegItemPath)
+                            If (Test-path -Path $Key.RegItemPath -PathType Container)
                             {
-                                Write-EventLog -EventId 80 -Message "Path found, creating new property -Path $($Key.RegItemPath) -Name $($Key.RegItemValueName) -PropertyType $($Key.RegItemValueType) -Value $($Key.RegItemValue)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
-                                Write-Verbose "Path found, creating new property -Path $($Key.RegItemPath) Name $($Key.RegItemValueName) PropertyType $($Key.RegItemValueType) Value $($Key.RegItemValue)"
-                                New-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName -PropertyType $Key.RegItemValueType -Value $Key.RegItemValue -Force | Out-Null
+                                Write-EventLog -Message "Path found, creating new property -Path $($Key.RegItemPath) -Name $($Key.RegItemValueName) -PropertyType $($Key.RegItemValueType) -Value $($Key.RegItemValue)" @EVT @eId80Info @sHT
+                                Write-Verbose -Message "Path found, creating new property -Path $($Key.RegItemPath) Name $($Key.RegItemValueName) PropertyType $($Key.RegItemValueType) Value $($Key.RegItemValue)"
+                                try {
+                                 $null = New-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName -PropertyType $Key.RegItemValueType -Value $Key.RegItemValue -Force @HT
+                                } catch {
+                                 Write-Warning -Message "Failed to create $($Key.RegItemValueName) under $($Key.RegItemPath) because $($_.Exception.Message)"
+                                }
                             }
                             Else
                             {
-                                Write-EventLog -EventId 80 -Message "Error: Creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
-                                Write-Verbose "Error: Creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)"
-                                New-Item -Path $Key.RegItemPath -Force | New-ItemProperty -Name $Key.RegItemValueName -PropertyType $Key.RegItemValueType -Value $Key.RegItemValue -Force | Out-Null
+                                Write-EventLog -Message "Error: Creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)" @EVT @eId80Info @sHT
+                                Write-Verbose -Message "Error: Creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)"
+                                try {
+                                 $null = New-Item -Path $Key.RegItemPath -Force @HT |
+                                 New-ItemProperty -Name $Key.RegItemValueName -PropertyType $Key.RegItemValueType -Value $Key.RegItemValue -Force @HT
+                                } catch {
+                                 Write-Warning -Message "Failed to add $($Key.RegItemValueName) under $($Key.RegItemPath) because $($_.Exception.Message)"
+                                }
                             }
-
                         }
                     }
                 }
+             }
+             Else
+             {
+                Write-EventLog -Message 'No LocalPolicy Settings Found!' @EVT @eId80Warn @sHT
+                Write-Warning -Message 'No LocalPolicy Settings found'
+             }
+            } catch  {
+             Write-Warning -Message "Failed to set LocalPolicy Settings because $($_.Exception.Message)"
             }
-            Else
-            {
-                Write-EventLog -EventId 80 -Message "No LocalPolicy Settings Found!" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Warning
-                Write-Warning "No LocalPolicy Settings found"
-            }
+
         }
 
     }
     End
     {
-        Write-Verbose "Exiting Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Exiting Function '$($MyInvocation.MyCommand.Name)'"
     }
 }

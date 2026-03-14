@@ -1,4 +1,5 @@
-﻿function Remove-WDOTRemoveLegacyIE
+﻿#Requires -RunAsAdministrator
+Function Remove-WDOTRemoveLegacyIE
 {
     [CmdletBinding(SupportsShouldProcess)]
 
@@ -9,26 +10,32 @@
 
     Begin
     {
-        Write-Verbose "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        $HT = @{ ErrorAction = 'Stop' }
+        $sHT = @{ ErrorAction = 'SilentlyContinue' }
     }
     Process
     {
-        Write-EventLog -EventId 80 -Message "Remove Legacy Internet Explorer" -LogName 'WDOT' -Source 'AdvancedOptimizations' -EntryType Information
-        Write-Host "[Windows Advanced Optimize] Remove Legacy Internet Explorer" -ForegroundColor Cyan
-        Get-WindowsCapability -Online | Where-Object { $_.Name -Like "*Browser.Internet*" } |
+      try {
+        Write-EventLog -EventId 80 -Message "Remove Legacy Internet Explorer" -LogName 'WDOT' -Source 'AdvancedOptimizations' -EntryType Information @sHT
+        Write-Host -Object "[Windows Advanced Optimize] Remove Legacy Internet Explorer" -ForegroundColor Cyan
+        Get-WindowsCapability -Online @HT | Where-Object { $_.Name -Like "*Browser.Internet*" } |
         Foreach-Object {
          $c = $_
          if ($PSCmdlet.ShouldProcess($c.Name,'Remove Capability')) {
           try {
-           $c | Remove-WindowsCapability -Online -ErrorAction Stop
+           $c | Remove-WindowsCapability -Online @HT
           } catch {
            Write-Warning -Message "Failed to remove capability $($c.Name) because $($_.Exception.Message)"
           }
          }
         }
+      } catch {
+       Write-Warning -Message "Failed to remove capability because $($_.Exception.Message)"
+      }
     }
     End
     {
-        Write-Verbose "Exiting Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Exiting Function '$($MyInvocation.MyCommand.Name)'"
     }
 }

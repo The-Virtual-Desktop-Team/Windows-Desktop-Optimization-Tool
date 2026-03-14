@@ -1,6 +1,7 @@
-﻿[CmdletBinding()]
+﻿#Requires -Version 5.1
+[CmdletBinding()]
 Param (
-    [Parameter(Mandatory = $true, HelpMessage = "Specify the name of the configuration folder to create")]
+    [Parameter(Mandatory, HelpMessage = 'Specify the name of the configuration folder to create')]
     [ValidateNotNullOrEmpty()]
     [ValidatePattern("^[a-zA-Z0-9_-]+$")]
     [string]$FolderName
@@ -32,18 +33,21 @@ Param (
 Function New-WVDConfigurationFile {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([System.Boolean])]
-    param (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+    Param (
+        [Parameter(Mandatory,ValueFromPipeline)]
         [ValidateNotNullOrEmpty()]
         [ValidatePattern("^[a-zA-Z0-9_-]+$")]
         [string]$FolderName
     )
-
-    process {
+    Begin {
+        $HT = @{ ErrorAction = 'Stop' }
+        $sHT = @{ ErrorAction = 'SilentlyContinue' }
+    }
+    Process {
         try {
             # Define paths
-            $ConfigurationsRoot = Join-Path -Path $PSScriptRoot -ChildPath "Configurations"
-            $TemplatesFolder = Join-Path -Path $ConfigurationsRoot -ChildPath "Templates"
+            $ConfigurationsRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Configurations'
+            $TemplatesFolder = Join-Path -Path $ConfigurationsRoot -ChildPath 'Templates'
             $TargetFolder = Join-Path -Path $ConfigurationsRoot -ChildPath $FolderName
 
             # Validate that Templates folder exists
@@ -52,47 +56,58 @@ Function New-WVDConfigurationFile {
             }
 
             # Check if target folder already exists
-            if (Test-Path -Path $TargetFolder) {
+            if (Test-Path -Path $TargetFolder -PathType Container) {
                 Write-Warning "Configuration folder '$FolderName' already exists at: $TargetFolder"
                 return $false
             }
 
             # Create the target folder
-            if ($PSCmdlet.ShouldProcess($TargetFolder, "Create directory")) {
-                Write-Verbose "Creating directory: $TargetFolder"
-                $NewFolder = New-Item -Path $TargetFolder -ItemType Directory -Force
-                Write-Host "Created configuration folder: $($NewFolder.FullName)" -ForegroundColor Green
+            if ($PSCmdlet.ShouldProcess($TargetFolder, 'Create directory')) {
+                Write-Verbose -Message "Creating directory: $TargetFolder"
+                try {
+                 $NewFolder = New-Item -Path $TargetFolder -ItemType Directory -Force @HT
+                 Write-Host -Object "Created configuration folder: $($NewFolder.FullName)" -ForegroundColor Green
+                } catch {
+                 Write-Warning -Message "Failed to create $($TargetFolder) because $($_.Exception.Message)"
+                 return $false
+                }
             }
 
             # Copy template files
-            $TemplateFiles = Get-ChildItem -Path $TemplatesFolder -File
+            $TemplateFiles = Get-ChildItem -Path $TemplatesFolder -File @sHT
             if ($TemplateFiles.Count -eq 0) {
-                Write-Warning "No template files found in: $TemplatesFolder"
+                Write-Warning -Message "No template files found in: $TemplatesFolder"
                 return $false
             }
 
-            if ($PSCmdlet.ShouldProcess($TargetFolder, "Copy template files")) {
-                Write-Verbose "Copying $($TemplateFiles.Count) template files to: $TargetFolder"
-                Copy-Item -Path "$TemplatesFolder\*" -Destination $TargetFolder -Force
-                Write-Host "Successfully copied $($TemplateFiles.Count) template files" -ForegroundColor Green
+            if ($PSCmdlet.ShouldProcess($TargetFolder, 'Copy template files')) {
+                Write-Verbose -Message "Copying $($TemplateFiles.Count) template files to: $TargetFolder"
+                try {
+                 Copy-Item -Path "$TemplatesFolder\*" -Destination $TargetFolder -Force @HT
+                 Write-Host -Object "Successfully copied $($TemplateFiles.Count) template files" -ForegroundColor Green
+                } catch {
+                 Write-Warning -Message "Failed to copy files to $($TargetFolder) because $($_.Exception.Message)"
+                 return $false
+                }
             }
 
             return $true
 
         } catch {
-            Write-Error "Failed to create configuration files: $($_.Exception.Message)"
+            Write-Error -Message "Failed to create configuration files: $($_.Exception.Message)"
             return $false
         }
     }
+    End {}
 }
 
 # Main execution
 if (-not $PSBoundParameters.ContainsKey('WhatIf') -and -not $PSBoundParameters.ContainsKey('Confirm')) {
     $result = New-WVDConfigurationFile -FolderName $FolderName
     if ($result) {
-        Write-Host "Configuration folder '$FolderName' created successfully!" -ForegroundColor Green
+        Write-Host -Object "Configuration folder '$FolderName' created successfully!" -ForegroundColor Green
     } else {
-        Write-Host "Failed to create configuration folder '$FolderName'" -ForegroundColor Red
+        Write-Host -Object "Failed to create configuration folder '$FolderName'" -ForegroundColor Red
         exit 1
     }
 }
