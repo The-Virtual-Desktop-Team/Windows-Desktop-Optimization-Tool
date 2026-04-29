@@ -1,85 +1,110 @@
-﻿function Optimize-WDOTDefaultUserSetting
-{
+﻿#Requires -RunAsAdministrator
+Function Optimize-WDOTDefaultUserSetting {
     [CmdletBinding()]
-
     Param
     (
-
+    [Parameter()]
+    [string]$DefaultUserSettingsFilePath = ".\DefaultUserSettings.json"
     )
-
     Begin
     {
-        Write-Verbose "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Entering Function '$($MyInvocation.MyCommand.Name)'"
+        $HT = @{ ErrorAction = 'Stop' }
+        $sHT = @{ ErrorAction = 'SilentlyContinue' }
+        $EVT = @{ LogName = 'WDOT' ; Source = 'DefaultUserSettings' }
+        $eId40Info  = @{ EventId = 40 ; EntryType = 'Information' }
+        $eId40Warn  = @{ EventId = 40 ; EntryType = 'Warning' }
     }
     Process
     {
-        $DefaultUserSettingsFilePath = ".\DefaultUserSettings.json"
-        If (Test-Path $DefaultUserSettingsFilePath)
+        If (Test-Path -Path $DefaultUserSettingsFilePath -PathType Leaf)
         {
-            Write-EventLog -EventId 40 -Message "Set Default User Settings" -LogName 'WDOT' -Source 'WDOT' -EntryType Information
-            Write-Host "[Windows Optimize] Set Default User Settings" -ForegroundColor Cyan
-            $UserSettings = (Get-Content $DefaultUserSettingsFilePath | ConvertFrom-Json).Where( { $_.OptimizationState -eq "Apply" })
+         try {
+            Write-EventLog -Message "Set Default User Settings" @EVT @eId40Info @sHT
+            Write-Host -Object "[Windows Optimize] Set Default User Settings" -ForegroundColor Cyan
+            $UserSettings = (Get-Content -Path $DefaultUserSettingsFilePath @HT | ConvertFrom-Json @HT).Where( { $_.OptimizationState -eq "Apply" })
             If ($UserSettings.Count -gt 0)
             {
-                Write-EventLog -EventId 40 -Message "Processing Default User Settings (Registry Keys)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                Write-Verbose "Processing Default User Settings (Registry Keys)"
-                $null = Start-Process reg -ArgumentList "LOAD HKLM\WDOT_TEMP C:\Users\Default\NTUSER.DAT" -PassThru -Wait
-
-                Foreach ($Item in $UserSettings)
-                {
-                    If ($Item.PropertyType -eq "BINARY")
+                Write-EventLog -Message "Processing Default User Settings (Registry Keys)" @EVT @eId40Info @sHT
+                Write-Verbose -Message "Processing Default User Settings (Registry Keys)"
+                $null = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList "LOAD HKLM\WDOT_TEMP C:\Users\Default\NTUSER.DAT" -PassThru -Wait
+                if ($LASTEXITCODE -eq  0) {
+                 Foreach ($Item in $UserSettings)
+                 {
+                    If ($Item.PropertyType -eq 'BINARY')
                     {
-                        $Value = [byte[]]($Item.PropertyValue.Split(","))
+                        $Value = [byte[]]($Item.PropertyValue.Split(','))
                     }
                     Else
                     {
                         $Value = $Item.PropertyValue
                     }
 
-                    If (Test-Path -Path ("{0}" -f $Item.HivePath))
+                    If (Test-Path -Path "$($Item.HivePath)" -PathType Container)
                     {
-                        Write-EventLog -EventId 40 -Message "Found $($Item.HivePath) - $($Item.KeyName)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                        Write-Verbose "Found $($Item.HivePath) - $($Item.KeyName)"
-                        If (Get-ItemProperty -Path ("{0}" -f $Item.HivePath) -ErrorAction SilentlyContinue)
+                        Write-EventLog -Message "Found $($Item.HivePath) - $($Item.KeyName)" @EVT @eId40Info @sHT
+                        Write-Verbose -Message "Found $($Item.HivePath) - $($Item.KeyName)"
+                        If (Get-ItemProperty -Path "$($Item.HivePath)" -Name "$($Item.KeyName)" @sHT)
                         {
-                            Write-EventLog -EventId 40 -Message "Set $($Item.HivePath) - $Value" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                            Set-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -Value $Value -Type $Item.PropertyType -Force
+                            Write-EventLog -Message "Set $($Item.HivePath) - $Value" @EVT @eId40Info @sHT
+                            try {
+                             Set-ItemProperty -Path "$($Item.HivePath)" -Name "$($Item.KeyName)" -Value $Value -Type "$($Item.PropertyType)" -Force @HT
+                            } catch {
+                             Write-Warning -Message "Failed to set $($Item.KeyName) under key $($Item.HivePath) because $($_.Exception.Message)"
+                            }
                         }
                         Else
                         {
-                            Write-EventLog -EventId 40 -Message "New $($Item.HivePath) Name $($Item.KeyName) PropertyType $($Item.PropertyType) Value $Value" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                            New-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -PropertyType $Item.PropertyType -Value $Value -Force | Out-Null
+                            Write-EventLog -Message "New $($Item.HivePath) Name $($Item.KeyName) PropertyType $($Item.PropertyType) Value $Value" @EVT @eId40Info @sHT
+                            try {
+                             $null = New-ItemProperty -Path "$($Item.HivePath)" -Name "$($Item.KeyName)" -PropertyType "$($Item.PropertyType)" -Value $Value -Force @HT
+                            } catch {
+                             Write-Warning -Message "Failed to create $($Item.KeyName) under key $($Item.HivePath) because $($_.Exception.Message)"
+                            }
                         }
                     }
                     Else
                     {
-                        Write-EventLog -EventId 40 -Message "Registry Path not found $($Item.HivePath)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                        Write-EventLog -EventId 40 -Message "Creating new Registry Key $($Item.HivePath)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                        $newKey = New-Item -Path ("{0}" -f $Item.HivePath) -Force
-                        If (Test-Path -Path $newKey.PSPath)
+                        Write-EventLog -Message "Registry Path not found $($Item.HivePath)" @EVT @eId40Info @sHT
+                        Write-EventLog -Message "Creating new Registry Key $($Item.HivePath)" @EVT @eId40Info @sHT
+                        try {
+                         $newKey = New-Item -Path "$($Item.HivePath)" -ItemType 'Container' -Force @HT
+                        } catch {
+                         Write-Warning -Message "Failed to create key $($Item.HivePath) because $($_.Exception.Message)"
+                        }
+                        If (Test-Path -Path $newKey.PSPath -PathType Container)
                         {
-                            New-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -PropertyType $Item.PropertyType -Value $Value -Force | Out-Null
+                            try {
+                             $null = New-ItemProperty -Path "$($Item.HivePath)" -Name "$($Item.KeyName)" -PropertyType "$($Item.PropertyType)" -Value $Value -Force @HT
+                            } catch {
+                             Write-Warning -Message "Failed to create $($Item.KeyName) under key $($Item.HivePath) because $($_.Exception.Message)"
+                            }
                         }
                         Else
                         {
-                            Write-EventLog -EventId 140 -Message "Failed to create new Registry Key" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Error
+                            Write-EventLog -EventId 140 -Message "Failed to create new Registry Key" @EVT -EntryType Error @sHT
                         }
                     }
-                }
-                $null = Start-Process reg -ArgumentList "UNLOAD HKLM\WDOT_TEMP" -PassThru -Wait
+                 }
+                } #endof LASTEXITCODE
+                $null = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList "UNLOAD HKLM\WDOT_TEMP" -PassThru -Wait @HT
             }
             Else
             {
-                Write-EventLog -EventId 40 -Message "No Default User Settings to set" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Warning
+                Write-EventLog -Message "No Default User Settings to set" @EVT @eId40Warn @sHT
             }
+
+         } catch {
+            Write-Warning -Message "Failed to set DefaultUserSettings because $($_.Exception.Message)"
+         }
         }
         Else
         {
-            Write-EventLog -EventId 40 -Message "File not found: $DefaultUserSettingsFilePath" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Warning
+            Write-EventLog -Message "File not found: $DefaultUserSettingsFilePath" @EVT @eId40Warn @sHT
         }
     }
     End
     {
-        Write-Verbose "Exiting Function '$($MyInvocation.MyCommand.Name)'"
+        Write-Verbose -Message "Exiting Function '$($MyInvocation.MyCommand.Name)'"
     }
 }

@@ -1,4 +1,7 @@
-﻿<#####################################################################################################################################
+﻿#Requires -RunAsAdministrator
+#Requires -PSEdition Desktop
+
+<#####################################################################################################################################
 
     This Sample Code is provided for the purpose of illustration only and is not intended to be used in a production environment.
     THIS SAMPLE CODE AND ANY RELATED INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED,
@@ -55,17 +58,16 @@ https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.manageme
 https://msdn.microsoft.com/en-us/library/cc422938.aspx
 #>
 
-[Cmdletbinding(DefaultParameterSetName = "ByConfigProfile")]
+[Cmdletbinding(DefaultParameterSetName = 'ByConfigProfile')]
 Param (
     # Parameter help description
     [Parameter(ParameterSetName = 'ByWindowsVersion', DontShow = $true)]
-    [ArgumentCompleter( { Get-ChildItem $PSScriptRoot\Configurations -Directory | Select-Object -ExpandProperty Name } )]
-    [System.String]$WindowsVersion = (Get-ItemProperty "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\").ReleaseId,
+    [ArgumentCompleter( { Get-ChildItem -Path $PSScriptRoot\Configurations -Directory | Select-Object -ExpandProperty Name } )]
+    [System.String]$WindowsVersion = (Get-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\').ReleaseId,
 
     [Parameter(Mandatory = $true, ParameterSetName = 'ByConfigProfile')]
-    [ArgumentCompleter( { Get-ChildItem $PSScriptRoot\Configurations -Directory | Select-Object -ExpandProperty Name } )]
+    [ArgumentCompleter( { Get-ChildItem -Path $PSScriptRoot\Configurations -Directory | Select-Object -ExpandProperty Name } )]
     [string]$ConfigProfile,
-
     [ValidateSet('All', 'WindowsMediaPlayer', 'AppxPackages', 'ScheduledTasks', 'DefaultUserSettings', 'LocalPolicy', 'Autologgers', 'Services', 'NetworkOptimizations', 'DiskCleanup')]
     [String[]]
     $Optimizations,
@@ -75,72 +77,93 @@ Param (
     [String[]]
     $AdvancedOptimizations,
 
+    [Parameter()]
     [Switch]$Restart,
+
+    [Parameter()]
     [Switch]$AcceptEULA
 )
-
-#Requires -RunAsAdministrator
-#Requires -PSEdition Desktop
-
-BEGIN
+Begin
 {
+    # Windows Desktop Optimization Tool Version
+    $WDOTVersion = '1.0.0.0'
+
+    $HT = @{ ErrorAction = 'Stop' }
+    $sHT = @{ ErrorAction = 'SilentlyContinue' }
+    $EVT = @{ LogName = 'WDOT' ; Source = 'WDOT' }
+
     # Load all functions for later use
-    $WDOTFunctions = Get-ChildItem "$PSScriptRoot\Functions\*-WDOT*.ps1" | Select-Object -ExpandProperty FullName
-    $WDOTFunctions | ForEach-Object {
-        Write-Verbose "Loading function $_"
-        . $_
+    Get-ChildItem -Path (Join-Path -Path "$($PSScriptRoot)" -ChildPath 'Functions\*-WDOT*.ps1') -File @sHT |
+    ForEach-Object {
+        Write-Verbose -Message "Loading function from $($_.FullName)"
+        . "$($_.FullName)"
     }
 
-    # Windows Desktop Optimization Tool Version
-    [Version]$WDOTVersion = "1.0.0.0"
     # Create Key
     $KeyPath = 'HKLM:\SOFTWARE\WDOT'
-    If (-Not(Test-Path $KeyPath))
+    If (-not(Test-Path $KeyPath -PathType Container))
     {
-        New-Item -Path $KeyPath | Out-Null
+     try {
+      $null = New-Item -Path $KeyPath -ItemType Container @HT
+     } catch {
+      Write-Warning -Message "Failed to create $($KeyPath) because $($_.Exception.Message)"
+     }
     }
 
     # Add WDOT Version Key
-    $Version = "Version"
-    $VersionValue = $WDOTVersion
-    If (Get-ItemProperty $KeyPath -Name Version -ErrorAction SilentlyContinue)
+    If (Get-ItemProperty -Path $KeyPath -Name Version @sHT)
     {
-        Set-ItemProperty -Path $KeyPath -Name $Version -Value $VersionValue
+     try {
+      Set-ItemProperty -Path $KeyPath -Name 'Version' -Value $WDOTVersion @HT
+     } catch {
+      Write-Warning -Message "Failed to set Version under $($KeyPath) because $($_.Exception.Message)"
+     }
     }
     Else
     {
-        New-ItemProperty -Path $KeyPath -Name $Version -Value $VersionValue | Out-Null
+     try {
+      New-ItemProperty -Path $KeyPath -Name 'Version' -Value $WDOTVersion @HT
+     } catch {
+      Write-Warning -Message "Failed to create Version under $($KeyPath) because $($_.Exception.Message)"
+     }
     }
 
     # Add WDOT Last Run
-    $LastRun = "LastRunTime"
     $LastRunValue = Get-Date
-    If (Get-ItemProperty $KeyPath -Name LastRunTime -ErrorAction SilentlyContinue)
+    If (Get-ItemProperty -Path $KeyPath -Name 'LastRunTime' @sHT)
     {
-        Set-ItemProperty -Path $KeyPath -Name $LastRun -Value $LastRunValue
+     try {
+      Set-ItemProperty -Path $KeyPath -Name 'LastRunTime' -Value $LastRunValue @HT
+     } catch {
+      Write-Warning -Message "Failed to modify LastRunTime under $($KeyPath) because $($_.Exception.Message)"
+     }
     }
     Else
     {
-        New-ItemProperty -Path $KeyPath -Name $LastRun -Value $LastRunValue | Out-Null
+     try {
+      $null = New-ItemProperty -Path $KeyPath -Name 'LastRunTime' -Value $LastRunValue @HT
+     } catch {
+      Write-Warning -Message "Failed to set LastRunTime under $($KeyPath) because $($_.Exception.Message)"
+     }
     }
 
     $EventSources = @('WDOT', 'WindowsMediaPlayer', 'AppxPackages', 'ScheduledTasks', 'DefaultUserSettings', 'Autologgers', 'Services', 'LocalPolicy', 'NetworkOptimizations', 'AdvancedOptimizations', 'DiskCleanup')
-    If (-not([System.Diagnostics.EventLog]::SourceExists("WDOT")))
+    If (-not([System.Diagnostics.EventLog]::SourceExists('WDOT')))
     {
         # All WDOT main function Event ID's [1-9]
-        New-EventLog -Source $EventSources -LogName 'WDOT'
-        Limit-EventLog -OverflowAction OverWriteAsNeeded -MaximumSize 64KB -LogName 'WDOT'
-        Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "Log Created"
+        New-EventLog -Source $EventSources @EVT @HT
+        Limit-EventLog -OverflowAction OverWriteAsNeeded -MaximumSize 64KB @EVT @HT
+        Write-EventLog @EVT  -EntryType Information -EventId 1 -Message "Log Created" @sHT
     }
     Else
     {
-        New-EventLog -Source $EventSources -LogName 'WDOT' -ErrorAction SilentlyContinue
+        New-EventLog -Source $EventSources @EVT @sHT
     }
 
     # Handle parameter set and validate configuration path
     if ($PSCmdlet.ParameterSetName -eq 'ByWindowsVersion')
     {
-        Write-Warning "The -WindowsVersion parameter is deprecated and will be removed in a future release. Use -ConfigProfile instead."
+        Write-Warning -Message 'The -WindowsVersion parameter is deprecated and will be removed in a future release. Use -ConfigProfile instead.'
         $ConfigPath = $WindowsVersion
     }
     else
@@ -148,7 +171,7 @@ BEGIN
         # Validate that ConfigProfile is provided and not empty
         if ([string]::IsNullOrWhiteSpace($ConfigProfile))
         {
-            $AvailableConfigs = Get-ChildItem "$PSScriptRoot\Configurations" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+            $AvailableConfigs = Get-ChildItem "$PSScriptRoot\Configurations" -Directory @sHT | Select-Object -ExpandProperty Name
             $ConfigList = if ($AvailableConfigs) { $AvailableConfigs -join ', ' } else { 'No configurations found' }
 
             $Message = @"
@@ -164,21 +187,21 @@ To create a new configuration profile, use:
 .\New-WVDConfigurationFiles.ps1 -FolderName "YourConfigName"
 "@
 
-            Write-Host $Message -ForegroundColor Yellow
-            Write-EventLog -Message "Script execution failed: ConfigProfile parameter is required but was not provided." -Source 'WDOT' -EventID 101 -EntryType Error -LogName 'WDOT' -ErrorAction SilentlyContinue
+            Write-Host -Object $Message -ForegroundColor Yellow
+            Write-EventLog -Message 'Script execution failed: ConfigProfile parameter is required but was not provided.'  -EventID 101 -EntryType Error @EVT @sHT
             return
         }
 
         $ConfigPath = $ConfigProfile
     }
 
-    Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "Starting WDOT by user '$env:USERNAME', for WDOT build '$ConfigPath', with the following options:`n$($PSBoundParameters | Out-String)"
+    Write-EventLog -EntryType Information -EventId 1 -Message "Starting WDOT by user '$env:USERNAME', for WDOT build '$ConfigPath', with the following options:`n$($PSBoundParameters | Out-String)" @EVT @sHT
 
     # Validate configuration path exists
-    $WorkingLocation = (Join-Path $PSScriptRoot "Configurations\$ConfigPath")
-    if (-not (Test-Path $WorkingLocation -PathType Container))
+    $WorkingLocation = Join-Path -Path "$($PSScriptRoot)" -ChildPath "Configurations\$($ConfigPath)"
+    if (-not(Test-Path -Path $WorkingLocation -PathType Container))
     {
-        $AvailableConfigs = Get-ChildItem "$PSScriptRoot\Configurations" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+        $AvailableConfigs = Get-ChildItem -Path (Join-Path -Path "$($PSScriptRoot)" -ChildPath 'Configurations') -Directory @sHT | Select-Object -ExpandProperty Name
         $ConfigList = if ($AvailableConfigs) { $AvailableConfigs -join ', ' } else { 'No configurations found' }
 
         $Message = @"
@@ -190,8 +213,8 @@ To create this configuration profile, use:
 .\New-WVDConfigurationFiles.ps1 -FolderName "$ConfigPath"
 "@
 
-        Write-Host $Message -ForegroundColor Red
-        Write-EventLog -Message "Invalid configuration path: $WorkingLocation" -Source 'WDOT' -EventID 100 -EntryType Error -LogName 'WDOT' -ErrorAction SilentlyContinue
+        Write-Host -Object $Message -ForegroundColor Red
+        Write-EventLog -Message "Invalid configuration path: $WorkingLocation"  -EventID 100 -EntryType Error @EVT @sHT
         return
     }
 
@@ -200,51 +223,50 @@ To create this configuration profile, use:
 
     try
     {
-        Push-Location $WorkingLocation -ErrorAction Stop
+        Push-Location -Path $WorkingLocation -ErrorAction Stop
     }
     catch
     {
         $Message = "Failed to access configuration directory: $WorkingLocation - Exiting Script!"
-        Write-EventLog -Message $Message -Source 'WDOT' -EventID 100 -EntryType Error -LogName 'WDOT' -ErrorAction SilentlyContinue
-        Write-Host $Message -ForegroundColor Red
+        Write-EventLog -Message $Message -EventID 100 -EntryType Error @EVT @sHT
+        Write-Host -Object $Message -ForegroundColor Red
         return
     }
-} # End Begin
-
-PROCESS {
+}
+Process {
     # Make sure we have something to process
     if (-not ($PSBoundParameters.Keys -match 'Optimizations') )
     {
-        Write-EventLog -Message "No Optimizations (Optimizations or AdvancedOptimizations) passed, exiting script!" -Source 'WDOT' -EventID 100 -EntryType Error -LogName 'WDOT'
+        Write-EventLog -Message "No Optimizations (Optimizations or AdvancedOptimizations) passed, exiting script!"  -EventID 100 -EntryType Error @EVT @sHT
         $Message = "`nThe Optimizations parameter no longer defaults to 'All', you must explicitly pass in this parameter.`nThis is to allow for running 'AdvancedOptimizations' separately "
-        Write-Host " * " -ForegroundColor black -BackgroundColor yellow -NoNewline
-        Write-Host " Important " -ForegroundColor Yellow -BackgroundColor Red -NoNewline
-        Write-Host " * " -ForegroundColor black -BackgroundColor yellow -NoNewline
-        Write-Host $Message -ForegroundColor yellow -BackgroundColor black
+        Write-Host -Object ' * ' -ForegroundColor black -BackgroundColor yellow -NoNewline
+        Write-Host -Object ' Important ' -ForegroundColor Yellow -BackgroundColor Red -NoNewline
+        Write-Host -Object ' * ' -ForegroundColor black -BackgroundColor yellow -NoNewline
+        Write-Host -Object $Message -ForegroundColor yellow -BackgroundColor black
         Return
     }
 
     # Legal stuff
-    $EULA = Get-Content (Join-Path $PSScriptRoot "EULA.txt")
+    $EULA = Get-Content -Path (Join-Path -Path $PSScriptRoot -ChildPath 'EULA.txt') @sHT
     if (-not $AcceptEULA) {
-        $Title = "Accept EULA"
+        $Title = 'Accept EULA'
         $Options = @(
             New-Object System.Management.Automation.Host.ChoiceDescription "&Yes"
             New-Object System.Management.Automation.Host.ChoiceDescription "&No"
         )
         $Response = $host.UI.PromptForChoice($Title, $EULA, $Options, 0)
         if ($Response -eq 0) {
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "EULA Accepted"
+            Write-EventLog -EntryType Information -EventId 1 -Message 'EULA Accepted' @EVT @sHT
         } else {
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Warning -EventId 1 -Message "EULA Declined, exiting!"
-            Set-Location $CurrentLocation
-            $ScriptRunTime = (New-TimeSpan -Start $StartTime -End (Get-Date))
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "WDOT Total Run Time: $($ScriptRunTime.Hours) Hours $($ScriptRunTime.Minutes) Minutes $($ScriptRunTime.Seconds) Seconds"
-            Write-Host "`n`nThank you from the Windows Desktop Optimization Team" -ForegroundColor Cyan
+            Write-EventLog -EntryType Warning -EventId 1 -Message 'EULA Declined, exiting!' @EVT @sHT
+            Set-Location -Path $CurrentLocation
+            $ScriptRunTime = New-TimeSpan -Start $StartTime -End (Get-Date)
+            Write-EventLog -EntryType Information -EventId 1 -Message "WDOT Total Run Time: $($ScriptRunTime.Hours) Hours $($ScriptRunTime.Minutes) Minutes $($ScriptRunTime.Seconds) Seconds" @EVT @sHT
+            Write-Host -Object "`n`nThank you from the Windows Desktop Optimization Team" -ForegroundColor Cyan
             continue
         }
     } else {
-        Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "EULA Accepted by Parameter"
+        Write-EventLog -EntryType Information -EventId 1 -Message 'EULA Accepted by Parameter' @EVT @sHT
     }
 
     #Get current OS stats
@@ -252,14 +274,14 @@ PROCESS {
     New-WDOTCommentBox "$($OSVersion.Caption)`nVersion: $($OSVersion.DisplayVersion) - Release ID: $($OSVersion.ReleaseID)"
 
     #region Windows Media Player
-    If ($Optimizations -contains "WindowsMediaPlayer" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'WindowsMediaPlayer' -or $Optimizations -contains 'All')
     {
         Remove-WDOTWindowsMediaPlayer
     }
     #endregion
 
     #region APPX Packages
-    If ($Optimizations -contains "AppxPackages" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'AppxPackages' -or $Optimizations -contains 'All')
     {
         Remove-WDOTAppxPackage
     }
@@ -268,7 +290,7 @@ PROCESS {
     #region Disable Scheduled Tasks
     # This section is for disabling scheduled tasks.  If you find a task that should not be disabled
     # change its "VDIState" from Disabled to Enabled, or remove it from the json completely.
-    If ($Optimizations -contains 'ScheduledTasks' -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'ScheduledTasks' -or $Optimizations -contains 'All')
     {
         Disable-WDOTScheduledTask
     }
@@ -276,21 +298,21 @@ PROCESS {
 
     #region Customize Default User Profile
     # Apply appearance customizations to default user registry hive, then close hive file
-    If ($Optimizations -contains "DefaultUserSettings" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'DefaultUserSettings' -or $Optimizations -contains 'All')
     {
         Optimize-WDOTDefaultUserSetting
     }
     #endregion
 
     #region Disable Windows Traces
-    If ($Optimizations -contains "AutoLoggers" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'AutoLoggers' -or $Optimizations -contains 'All')
     {
         Disable-WDOTAutoLogger
     }
     #endregion
 
     #region Disable Services
-    If ($Optimizations -contains "Services" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'Services' -or $Optimizations -contains 'All')
     {
         Disable-WDOTService
     }
@@ -298,7 +320,7 @@ PROCESS {
 
     #region Network Optimization
     # LanManWorkstation optimizations
-    If ($Optimizations -contains "NetworkOptimizations" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'NetworkOptimizations' -or $Optimizations -contains 'All')
     {
         Optimize-WDOTNetworkOptimization
     }
@@ -310,28 +332,28 @@ PROCESS {
     #   * change the "Root Certificates Update" policy.
     #   * change the "Enable Windows NTP Client" setting.
     #   * set the "Select when Quality Updates are received" policy
-    If ($Optimizations -contains "LocalPolicy" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'LocalPolicy' -or $Optimizations -contains 'All')
     {
         Optimize-WDOTLocalPolicySetting
     }
     #endregion
 
     #region Edge Settings
-    If ($AdvancedOptimizations -contains "Edge" -or $AdvancedOptimizations -contains "All")
+    If ($AdvancedOptimizations -contains 'Edge' -or $AdvancedOptimizations -contains 'All')
     {
         Optimize-WDOTEdgeSetting
     }
     #endregion
 
     #region Remove Legacy Internet Explorer
-    If ($AdvancedOptimizations -contains "RemoveLegacyIE" -or $AdvancedOptimizations -contains "All")
+    If ($AdvancedOptimizations -contains 'RemoveLegacyIE' -or $AdvancedOptimizations -contains 'All')
     {
         Remove-WDOTRemoveLegacyIE
     }
     #endregion
 
     #region Remove OneDrive Commercial
-    If ($AdvancedOptimizations -contains "RemoveOneDrive" -or $AdvancedOptimizations -contains "All")
+    If ($AdvancedOptimizations -contains 'RemoveOneDrive' -or $AdvancedOptimizations -contains 'All')
     {
         Remove-WDOTRemoveOneDrive
     }
@@ -341,18 +363,18 @@ PROCESS {
     # Delete not in-use files in locations C:\Windows\Temp and %temp%
     # Also sweep and delete *.tmp, *.etl, *.evtx, *.log, *.dmp, thumbcache*.db (not in use==not needed)
     # 5/18/20: Removing Disk Cleanup and moving some of those tasks to the following manual cleanup
-    If ($Optimizations -contains "DiskCleanup" -or $Optimizations -contains "All")
+    If ($Optimizations -contains 'DiskCleanup' -or $Optimizations -contains 'All')
     {
         Optimize-WDOTDiskCleanup
     }
     #endregion
 
     # Windows Desktop Optimization Toolkit cleanup
-    Set-Location $CurrentLocation
+    Set-Location -Path $CurrentLocation
     $EndTime = Get-Date
     $ScriptRunTime = New-TimeSpan -Start $StartTime -End $EndTime
-    Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "WDOT Total Run Time: $($ScriptRunTime.Hours) Hours $($ScriptRunTime.Minutes) Minutes $($ScriptRunTime.Seconds) Seconds"
-    Write-Host "`n`nThank you from the Windows Desktop Optimization Toolkit Team" -ForegroundColor Cyan
+    Write-EventLog -EntryType Information -EventId 1 -Message "WDOT Total Run Time: $($ScriptRunTime.Hours) Hours $($ScriptRunTime.Minutes) Minutes $($ScriptRunTime.Seconds) Seconds" @EVT @sHT
+    Write-Host -Object "`n`nThank you from the Windows Desktop Optimization Toolkit Team" -ForegroundColor Cyan
 
     If ($Restart)
     {
@@ -360,7 +382,8 @@ PROCESS {
     }
     Else
     {
-        Write-Warning "A reboot is required for all changes to take effect"
+        Write-Warning -Message 'A reboot is required for all changes to take effect'
     }
-    ########################  END OF SCRIPT  ########################
-} # End process
+}
+End {
+}
