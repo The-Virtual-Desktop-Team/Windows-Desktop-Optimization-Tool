@@ -86,7 +86,7 @@ Param (
 Begin
 {
     # Windows Desktop Optimization Tool Version
-    $WDOTVersion = '1.0.0.0'
+    $WDOTVersion = '1.1.0.0'
 
     $HT = @{ ErrorAction = 'Stop' }
     $sHT = @{ ErrorAction = 'SilentlyContinue' }
