@@ -151,13 +151,13 @@ Begin
     If (-not([System.Diagnostics.EventLog]::SourceExists('WDOT')))
     {
         # All WDOT main function Event ID's [1-9]
-        New-EventLog -Source $EventSources @EVT @HT
-        Limit-EventLog -OverflowAction OverWriteAsNeeded -MaximumSize 64KB @EVT @HT
-        Write-EventLog @EVT  -EntryType Information -EventId 1 -Message "Log Created" @sHT
+        New-EventLog -LogName 'WDOT' -Source $EventSources @HT
+        Limit-EventLog -LogName 'WDOT' -OverflowAction OverWriteAsNeeded -MaximumSize 64KB @HT
+        Write-EventLog @EVT -EntryType Information -EventId 1 -Message "Log Created" @sHT
     }
     Else
     {
-        New-EventLog -Source $EventSources @EVT @sHT
+        New-EventLog -LogName 'WDOT' -Source $EventSources @sHT
     }
 
     # Handle parameter set and validate configuration path
