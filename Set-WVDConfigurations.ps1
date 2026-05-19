@@ -67,6 +67,7 @@ Function Set-WVDConfiguration
     param (
         [Parameter(Mandatory,ValueFromPipeline)]
         [ValidateNotNullOrEmpty()]
+        [ValidateSet('WindowsMediaPlayer', 'AppxPackages', 'ScheduledTasks', 'DefaultUserSettings', 'LocalPolicy', 'Autologgers', 'Services', 'NetworkOptimizations', 'DiskCleanup')]
         [string]$ConfigurationFile,
 
         [Parameter(Mandatory)]
