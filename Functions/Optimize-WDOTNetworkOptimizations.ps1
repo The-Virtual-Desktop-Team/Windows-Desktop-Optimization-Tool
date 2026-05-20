@@ -12,9 +12,9 @@ Function Optimize-WDOTNetworkOptimization
         Write-Verbose -Message "Entering Function '$($MyInvocation.MyCommand.Name)'"
         $HT = @{ ErrorAction = 'Stop' }
         $sHT = @{ ErrorAction = 'SilentlyContinue' }
-        $EVT = @{ LogName = 'WDOT' ; Source = 'DefaultUserSettings' }
-        $eId70Info  = @{ EventId = 40 ; EntryType = 'Information' }
-        $eId70Warn  = @{ EventId = 40 ; EntryType = 'Warning' }
+        $EVT = @{ LogName = 'WDOT' ; Source = 'NetworkOptimizations' }
+        $eId70Info  = @{ EventId = 70 ; EntryType = 'Information' }
+        $eId70Warn  = @{ EventId = 70 ; EntryType = 'Warning' }
     }
     Process
     {
@@ -98,7 +98,7 @@ Function Optimize-WDOTNetworkOptimization
          try {
           Set-NetAdapterAdvancedProperty -DisplayName "Send Buffer Size" -DisplayValue 4MB -NoRestart @HT
          } catch {
-          Write-Waring -Message "Failed to set Send Buffer Size because $($_.Exception.Message)"
+          Write-Warning -Message "Failed to set Send Buffer Size because $($_.Exception.Message)"
          }
          <#  NOTE:
             Note that the above setting is for a Microsoft Hyper-V VM.  You can adjust these values in your environment...

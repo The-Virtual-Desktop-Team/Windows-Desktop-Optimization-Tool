@@ -18,7 +18,7 @@ Function Remove-WDOTRemoveOneDrive
     Process
     {
         Write-EventLog -EventId 80 -Message "Remove OneDrive Commercial" @EVT -EntryType Information @sHT
-        Write-Host -Object "Windows Advanced Optimize] Removing OneDrive Commercial" -ForegroundColor Cyan
+        Write-Host -Object "[Windows Advanced Optimize] Removing OneDrive Commercial" -ForegroundColor Cyan
         $OneDrivePath = @('C:\Windows\System32\OneDriveSetup.exe', 'C:\Windows\SysWOW64\OneDriveSetup.exe')
         $OneDrivePath | ForEach-Object {
             If (Test-Path -Path $_ -PathType Leaf)

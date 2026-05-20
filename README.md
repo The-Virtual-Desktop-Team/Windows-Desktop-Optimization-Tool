@@ -4,8 +4,8 @@
 
 > ## Welcome to the next evolution of the Virtual Desktop Optimization Tool
 
-![Static Badge](https://img.shields.io/badge/WDOT_Current_Version-1.0-blue)
-![Static Badge](https://img.shields.io/badge/WDOT_Latest_Release-1.0-Green)
+![Static Badge](https://img.shields.io/badge/WDOT_Current_Version-1.1-blue)
+![Static Badge](https://img.shields.io/badge/WDOT_Latest_Release-1.1-Green)
 
 ![Contributors](https://img.shields.io/github/contributors/The-Virtual-Desktop-Team/Windows-Desktop-Optimization-Tool)
 ![Forks](https://img.shields.io/github/forks/The-Virtual-Desktop-Team/Windows-Desktop-Optimization-Tool)
@@ -16,7 +16,7 @@
 
 ## 📖 Introduction
 
-The **Windows Desktop Optimization Tool (WDOT)** is a comprehensive PowerShell-based solution designed to optimize Windows devices for Virtual Desktop Infrastructure (VDI), Azure Virtual Desktop (AVD), and standalone machines. This tool automates the application of numerous optimization settings to improve performance, reduce resource consumption, and enhance user experience across various Windows environments.
+The **Windows Desktop Optimization Tool (WDOT)** is a comprehensive PowerShell-based solution designed to optimize Windows devices for Virtual Desktop Infrastructure (VDI), Azure Virtual Desktop (AVD), and standalone machines. This tool automates the application of numerous optimization settings to any Windows device to improve performance, reduce resource consumption, and enhance user experience across various Windows environments.
 
 ### Key Features
 
@@ -46,7 +46,7 @@ Modular PowerShell functions in the `Functions/` directory that handle specific 
 ### Prerequisites
 
 - **Windows 10/11** or **Windows Server 2019/2022/2025**
-- **PowerShell 5.1** or higher
+- **Windows PowerShell 5.1** (PowerShell 7+ is not supported — the tool uses cmdlets that exist only in the Windows PowerShell Desktop edition, such as `*-EventLog` and `Clear-BCCache`)
 - **Administrator privileges** (required for system-level optimizations)
 - **Execution Policy**: Set to allow script execution
 
@@ -219,7 +219,7 @@ Windows-Desktop-Optimization-Tool/
 │   │   ├── DefaultUserSettings.json  # User profile settings
 │   │   ├── PolicyRegSettings.json    # Group policy settings
 │   │   ├── EdgeSettings.json         # Microsoft Edge settings
-│   │   ├── Autologgers.Json          # Diagnostic logging settings
+│   │   ├── Autologgers.json          # Diagnostic logging settings
 │   │   ├── LanManWorkstation.json    # Network optimization settings
 │   │   └── DefaultAssociationsConfiguration.xml # File associations
 │   └── [Custom Profiles]/            # User-created configuration profiles
@@ -241,7 +241,7 @@ Each configuration profile contains JSON files that control optimization behavio
 | `DefaultUserSettings.json` | User profile registry settings | ~20 settings | `Apply` / `Skip` |
 | `PolicyRegSettings.json` | Local policy registry settings | ~15 policies | `Apply` / `Skip` |
 | `EdgeSettings.json` | Microsoft Edge optimizations | ~10 settings | `Apply` / `Skip` |
-| `Autologgers.Json` | Diagnostic logging services | ~15 loggers | `Apply` / `Skip` |
+| `Autologgers.json` | Diagnostic logging services | ~15 loggers | `Apply` / `Skip` |
 | `LanManWorkstation.json` | Network performance settings | ~5 settings | `Apply` / `Skip` |
 
 ### OptimizationState Values
@@ -267,7 +267,7 @@ WDOT includes comprehensive logging capabilities:
 Get-WinEvent -LogName "WDOT" -MaxEvents 50
 
 # View specific optimization results
-Get-WinEvent -LogName "WDOT" | Where-Object {$_.Id -eq 1}
+Get-WinEvent -FilterHashtable @{LogName='WDOT'; Id=1}
 ```
 
 ### Registry Tracking
@@ -293,9 +293,23 @@ WDOT maintains execution tracking in the registry:
 
 ### Backup Recommendations
 
-1. **System Restore Point**: Create before running optimizations
-2. **Registry Backup**: Export relevant registry keys
-3. **Configuration Backup**: Use `-CreateBackup` flag with `Set-WVDConfigurations.ps1`
+> **⚠️ Important**: WDOT does **not** create any system-level backups. Many of the optimizations it applies (Appx package removal, Windows Media Player / Internet Explorer / OneDrive removal, default user `NTUSER.DAT` modifications, service startup-type changes, group policy registry writes) are not automatically reversible. **It is your responsibility** to create a recovery point *before* running `Windows_Optimization.ps1`.
+
+Recommended pre-run steps (perform manually):
+
+1. **VM Snapshot / Checkpoint** — for VDI/AVD or any virtualized workload, take a hypervisor snapshot. This is the most reliable rollback.
+2. **System Restore Point** (physical or virtual):
+   ```powershell
+   Enable-ComputerRestore -Drive $env:SystemDrive
+   Checkpoint-Computer -Description "Pre-WDOT" -RestorePointType MODIFY_SETTINGS
+   ```
+   Note: System Restore is disabled by default on Windows 10/11 and on Server SKUs, and `Checkpoint-Computer` is throttled to one restore point per 24h by default.
+3. **Registry export** of keys WDOT will modify, e.g.:
+   ```powershell
+   reg.exe export "HKLM\SOFTWARE\Policies" C:\WDOT-Backup\Policies.reg /y
+   reg.exe export "HKLM\SYSTEM\CurrentControlSet\Services" C:\WDOT-Backup\Services.reg /y
+   ```
+4. **Configuration file backup** — `Set-WVDConfigurations.ps1` provides a `-CreateBackup` switch that timestamps a copy of the JSON profile *before* you edit it. This only protects your WDOT configuration files, not the machine itself.
 
 ## 🤝 Contributing
 
@@ -351,9 +365,12 @@ Get-ExecutionPolicy
 # View available configurations
 Get-ChildItem .\Configurations -Directory
 
-# Test configuration file validity
-if ($PSVersionTable.PSVersion -gt [version]'6.0.0') {
- Test-Json -Path ".\Configurations\MyConfig\Services.json"
+# Test configuration file validity (Windows PowerShell 5.1)
+try {
+    $null = Get-Content -Path ".\Configurations\MyConfig\Services.json" -Raw | ConvertFrom-Json
+    'Services.json is valid JSON'
+} catch {
+    "Invalid JSON: $($_.Exception.Message)"
 }
 # Check WDOT version and last run
 Get-ItemProperty "HKLM:\SOFTWARE\WDOT"

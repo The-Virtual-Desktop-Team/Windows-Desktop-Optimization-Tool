@@ -1,4 +1,5 @@
-﻿Function Optimize-WDOTEdgeSetting
+﻿#Requires -RunAsAdministrator
+Function Optimize-WDOTEdgeSetting
 {
     [CmdletBinding()]
 
@@ -36,10 +37,18 @@ try {
                     {
                         If ($key.RegItemValueName -eq 'DefaultAssociationsConfiguration')
                         {
-                            try {
-                             Copy-Item -Path .\ConfigurationFiles\DefaultAssociationsConfiguration.xml $key.RegItemValue -Force @HT
-                            } catch {
-                             Write-Warning -Message "Failed to copy file because $($_.Exception.Message)"
+                            $src = '.\DefaultAssociationsConfiguration.xml'
+                            if (Test-Path -Path $src -PathType Leaf) {
+                             try {
+                              Copy-Item -Path $src -Destination $Key.RegItemValue -Force @HT
+                              Write-EventLog -Message "Copied $src to $($Key.RegItemValue)" @EVT @sHT @eId80Info
+                             } catch {
+                              Write-EventLog -Message "Failed to copy $src to $($Key.RegItemValue): $($_.Exception.Message)" @EVT @sHT @eId80Warn
+                              Write-Warning -Message "Failed to copy file because $($_.Exception.Message)"
+                             }
+                            } else {
+                             Write-EventLog -Message "Source file not found: $src" @EVT @sHT @eId80Warn
+                             Write-Warning -Message "Source file not found: $src"
                             }
                         }
                         If (Get-ItemProperty -Path $Key.RegItemPath -Name $Key.RegItemValueName @sHT)

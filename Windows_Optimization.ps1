@@ -152,12 +152,23 @@ Begin
     {
         # All WDOT main function Event ID's [1-9]
         New-EventLog -LogName 'WDOT' -Source $EventSources @HT
-        Limit-EventLog -LogName 'WDOT' -OverflowAction OverWriteAsNeeded -MaximumSize 64KB @HT
+        Limit-EventLog -LogName 'WDOT' -OverflowAction OverWriteAsNeeded -MaximumSize 4MB @HT
         Write-EventLog @EVT -EntryType Information -EventId 1 -Message "Log Created" @sHT
     }
     Else
     {
         New-EventLog -LogName 'WDOT' -Source $EventSources @sHT
+
+        # One-shot resize for existing installs created with a small MaximumSize (was 64KB previously)
+        try {
+            $currentLog = Get-WinEvent -ListLog 'WDOT' @HT
+            if ($currentLog.MaximumSizeInBytes -lt 4MB) {
+                Limit-EventLog -LogName 'WDOT' -OverflowAction OverWriteAsNeeded -MaximumSize 4MB @HT
+                Write-EventLog @EVT -EntryType Information -EventId 1 -Message "Resized WDOT log MaximumSize from $($currentLog.MaximumSizeInBytes) bytes to 4MB" @sHT
+            }
+        } catch {
+            Write-Warning -Message "Failed to inspect/resize WDOT log MaximumSize because $($_.Exception.Message)"
+        }
     }
 
     # Handle parameter set and validate configuration path
