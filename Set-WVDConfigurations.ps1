@@ -1,8 +1,19 @@
 ﻿#Requires -Version 5.1
 [CmdletBinding()]
 Param (
-    [Parameter(Mandatory, HelpMessage = 'Specify the configuration file name (with or without .json extension)')]
+    [Parameter(Mandatory, HelpMessage = 'Specify the configuration file name (with or without .json extension). Valid: AppxPackages, AutoLoggers, DefaultUserSettings, EdgeSettings, LanManWorkstation, PolicyRegSettings, ScheduledTasks, Services')]
     [ValidateNotNullOrEmpty()]
+    [ArgumentCompleter({
+        'AppxPackages','AutoLoggers','DefaultUserSettings','EdgeSettings',
+        'LanManWorkstation','PolicyRegSettings','ScheduledTasks','Services'
+    })]
+    [ValidateScript({
+        $valid = @('AppxPackages','AutoLoggers','DefaultUserSettings','EdgeSettings',
+                   'LanManWorkstation','PolicyRegSettings','ScheduledTasks','Services')
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($_)
+        if ($valid -contains $base) { $true }
+        else { throw "Invalid configuration file '$_'. Valid files are: $($valid -join ', ')" }
+    })]
     [string]$ConfigurationFile,
 
     [Parameter(Mandatory, HelpMessage = 'Specify the configuration folder name')]
@@ -56,7 +67,7 @@ Param (
     Apply all Services optimizations for the Test1 folder without prompting.
 
 .NOTES
-    Author: Your Name
+    Author: Tim Muessig
     Version: 2.0
     Requires: PowerShell 5.1 or higher
 #>
@@ -67,7 +78,7 @@ Function Set-WVDConfiguration
     param (
         [Parameter(Mandatory,ValueFromPipeline)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet('WindowsMediaPlayer', 'AppxPackages', 'ScheduledTasks', 'DefaultUserSettings', 'LocalPolicy', 'Autologgers', 'Services', 'NetworkOptimizations', 'DiskCleanup')]
+        [ValidateSet('AppxPackages', 'AutoLoggers', 'DefaultUserSettings', 'EdgeSettings', 'LanManWorkstation', 'PolicyRegSettings', 'ScheduledTasks', 'Services')]
         [string]$ConfigurationFile,
 
         [Parameter(Mandatory)]
@@ -342,7 +353,7 @@ Function Set-WVDConfiguration
 if (-not $PSBoundParameters.ContainsKey('WhatIf') -and -not $PSBoundParameters.ContainsKey('Confirm'))
 {
     $params = @{
-        ConfigurationFile = $ConfigurationFile
+        ConfigurationFile = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationFile)
         ConfigFolderName  = $ConfigFolderName
     }
 

@@ -20,7 +20,7 @@ When you run this script, it copies the following template configuration files t
 | File Name | Purpose |
 |-----------|---------|
 | `AppxPackages.json` | Controls which Windows Store apps to remove or keep |
-| `Autologgers.Json` | Manages Windows automatic logging services |
+| `Autologgers.json` | Manages Windows automatic logging services |
 | `DefaultAssociationsConfiguration.xml` | Sets default file associations |
 | `DefaultUserSettings.json` | Configures default user registry settings |
 | `EdgeSettings.json` | Microsoft Edge browser optimization settings |

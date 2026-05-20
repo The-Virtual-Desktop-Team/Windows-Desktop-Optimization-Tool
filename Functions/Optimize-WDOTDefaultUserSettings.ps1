@@ -27,8 +27,15 @@ Function Optimize-WDOTDefaultUserSetting {
             {
                 Write-EventLog -Message "Processing Default User Settings (Registry Keys)" @EVT @eId40Info @sHT
                 Write-Verbose -Message "Processing Default User Settings (Registry Keys)"
-                $null = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList "LOAD HKLM\WDOT_TEMP C:\Users\Default\NTUSER.DAT" -PassThru -Wait
-                if ($LASTEXITCODE -eq  0) {
+
+                $loadProc = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList 'LOAD HKLM\WDOT_TEMP C:\Users\Default\NTUSER.DAT' -PassThru -Wait -WindowStyle Hidden
+                if ($loadProc.ExitCode -ne 0) {
+                    Write-EventLog -EventId 140 -Message "Failed to LOAD C:\Users\Default\NTUSER.DAT into HKLM\WDOT_TEMP (reg.exe exit $($loadProc.ExitCode)). Skipping Default User Settings." -EntryType Error @EVT @sHT
+                    Write-Warning -Message "Failed to LOAD default user hive (reg.exe exit $($loadProc.ExitCode)). Skipping Default User Settings."
+                    return
+                }
+
+                try {
                  Foreach ($Item in $UserSettings)
                  {
                     If ($Item.PropertyType -eq 'BINARY')
@@ -86,8 +93,20 @@ Function Optimize-WDOTDefaultUserSetting {
                         }
                     }
                  }
-                } #endof LASTEXITCODE
-                $null = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList "UNLOAD HKLM\WDOT_TEMP" -PassThru -Wait @HT
+                }
+                finally {
+                    # Release any handles before unloading so reg.exe can release the hive
+                    [System.GC]::Collect()
+                    [System.GC]::WaitForPendingFinalizers()
+
+                    $unloadProc = Start-Process -FilePath "$($env:systemroot)\system32\reg.exe" -ArgumentList 'UNLOAD HKLM\WDOT_TEMP' -PassThru -Wait -WindowStyle Hidden
+                    if ($unloadProc.ExitCode -ne 0) {
+                        Write-EventLog -EventId 140 -Message "Failed to UNLOAD HKLM\WDOT_TEMP (reg.exe exit $($unloadProc.ExitCode)). Hive may remain mounted." -EntryType Error @EVT @sHT
+                        Write-Warning -Message "Failed to UNLOAD HKLM\WDOT_TEMP (reg.exe exit $($unloadProc.ExitCode))."
+                    } else {
+                        Write-EventLog -Message 'Unloaded HKLM\WDOT_TEMP' @EVT @eId40Info @sHT
+                    }
+                }
             }
             Else
             {
