@@ -111,10 +111,7 @@ Function Set-WVDConfiguration
         {
             # Normalize configuration file name
             $ConfigFileBaseName = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationFile)
-            if (-not $ConfigurationFile.EndsWith('.json'))
-            {
-                $ConfigurationFile = "$ConfigFileBaseName.json"
-            }
+            $NormalizedFileName = if ($ConfigurationFile.EndsWith('.json')) { $ConfigurationFile } else { "$ConfigFileBaseName.json" }
 
             # Validate configuration file type (case-insensitive lookup)
             $ConfigMapping = $null
@@ -136,7 +133,7 @@ Function Set-WVDConfiguration
             # Build target file path
             $ConfigurationsRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Configurations'
             $ConfigFolder = Join-Path -Path $ConfigurationsRoot -ChildPath $ConfigFolderName
-            $TargetFile = Join-Path -Path $ConfigFolder -ChildPath $ConfigurationFile
+            $TargetFile = Join-Path -Path $ConfigFolder -ChildPath $NormalizedFileName
 
             # Validate paths exist
             if (-not (Test-Path -Path $ConfigFolder -PathType Container))
